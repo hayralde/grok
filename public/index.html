@@ -1,1 +1,36 @@
-TEMP
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parada Programada — Painel de Acompanhamento</title>
+<script>
+// Emergency bootstrap: load last known good index from commit 072023cd
+(async function () {
+  try {
+    const urls = [
+      'https://cdn.jsdelivr.net/gh/hayralde/grok@072023cd9c056e2a0654193d935619bdd7a25c98/public/index.html',
+      'https://raw.githubusercontent.com/hayralde/grok/072023cd9c056e2a0654193d935619bdd7a25c98/public/index.html'
+    ];
+    let html = null;
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { cache: 'no-store' });
+        if (r.ok) { html = await r.text(); break; }
+      } catch (e) {}
+    }
+    if (!html) throw new Error('fetch failed');
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (e) {
+    document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;color:#8494A3">Falha ao restaurar o painel. Atualize a página ou faça redeploy do ZIP v4.0.2.4.</p>';
+    console.error(e);
+  }
+})();
+</script>
+</head>
+<body>
+<p style="font-family:sans-serif;padding:24px;color:#8494A3">Restaurando PCM…</p>
+</body>
+</html>
