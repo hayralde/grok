@@ -16,7 +16,12 @@
   async function loadSCurve3Data(force) {
     if (window.SCURVE3_CACHE && !force) return window.SCURVE3_CACHE;
     try {
-      const data = await api('/api/dashboard');
+      const headers = { 'Content-Type': 'application/json' };
+      const tok = (typeof TOKEN !== 'undefined' && TOKEN) || localStorage.getItem('pcm_token');
+      if (tok) headers['Authorization'] = 'Bearer ' + tok;
+      const res = await fetch('/api/dashboard', { headers, cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
       window.SCURVE3_CACHE = data;
       return data;
     } catch (e) {
@@ -66,13 +71,36 @@
     return { labels, areaSeries };
   }
 
+  function resizeSCurve3Soon() {
+    [40, 120, 300, 600].forEach(ms => {
+      setTimeout(() => {
+        try {
+          if (window.sCurve3Chart) window.sCurve3Chart.resize();
+        } catch (_) {}
+      }, ms);
+    });
+  }
+
   window.renderSCurve3 = async function renderSCurve3() {
     const canvas = document.getElementById('sCurve3Chart');
-    if (!canvas || typeof Chart === 'undefined') return;
+    if (!canvas) {
+      console.warn('[scurve3] canvas #sCurve3Chart nao encontrado');
+      return;
+    }
+    if (typeof Chart === 'undefined') {
+      console.warn('[scurve3] Chart.js nao carregado');
+      return;
+    }
+    const box = canvas.parentElement;
+    if (box) {
+      if (!box.style.minHeight) box.style.minHeight = '420px';
+      if (!box.style.height || box.clientHeight < 200) box.style.height = 'min(62vh, 520px)';
+    }
     const dash = await loadSCurve3Data(true);
     const areasObj = (dash && dash.areas) ? dash.areas : dash;
     if (!areasObj) {
       if (window.sCurve3Chart) { window.sCurve3Chart.destroy(); window.sCurve3Chart = null; }
+      console.warn('[scurve3] sem dados do dashboard (login necessario?)');
       return;
     }
     const { labels, areaSeries } = unifySCurve3Timeline(areasObj);
@@ -136,7 +164,8 @@
     if (window.sCurve3Chart) {
       window.sCurve3Chart.data.labels = labels;
       window.sCurve3Chart.data.datasets = datasets;
-      window.sCurve3Chart.update();
+      window.sCurve3Chart.update('none');
+      resizeSCurve3Soon();
       return;
     }
     window.sCurve3Chart = new Chart(canvas.getContext('2d'), {
@@ -161,10 +190,11 @@
         },
         scales: {
           x: { grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 14, padding: 6 } },
-          y: { min: 0, max: 100, grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, stepSize: 10, padding: 8, callback: v => v + '%' } }
+          y: { min: 0, max: 100, grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, stepSize: 10, padding: 8, callback: v => v + '%' }
         }
       }
     });
+    resizeSCurve3Soon();
   };
 
   function canUseSCurve3() {
@@ -202,7 +232,7 @@
     });
     const s3btn = document.getElementById('scurve3Btn');
     if (s3btn) s3btn.classList.add('active-tool');
-    window.renderSCurve3();
+    Promise.resolve(window.renderSCurve3()).then(() => resizeSCurve3Soon());
   }
 
   window.setupSCurve3Controls = function setupSCurve3Controls() {
@@ -267,8 +297,7 @@
         });
         const s3btn = document.getElementById('scurve3Btn');
         if (s3btn) s3btn.classList.add('active-tool');
-        window.renderSCurve3();
-        if (window.sCurve3Chart) setTimeout(() => { try { window.sCurve3Chart.resize(); } catch (_) {} }, 40);
+        Promise.resolve(window.renderSCurve3()).then(() => resizeSCurve3Soon());
         return;
       }
       _act(tab);
