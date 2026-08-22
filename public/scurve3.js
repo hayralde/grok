@@ -167,8 +167,48 @@
     });
   };
 
+  function canUseSCurve3() {
+    try {
+      if (typeof USER !== 'undefined' && USER && (USER.role === 'admin' || USER.role === 'supervisor')) return true;
+    } catch (_) {}
+    const scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
+    if (scurveBtn && scurveBtn.style.display !== 'none') return true;
+    return false;
+  }
+
+  function showSCurve3UI(show) {
+    const tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
+    const s3btn = document.getElementById('scurve3Btn');
+    const disp = show ? '' : 'none';
+    if (tabBtn) tabBtn.style.display = disp;
+    if (s3btn) s3btn.style.display = disp;
+  }
+
+  function openSCurve3() {
+    if (!canUseSCurve3()) {
+      alert('Faça login como supervisor ou administrador para usar a Curva S ×3.');
+      return;
+    }
+    showSCurve3UI(true);
+    if (typeof window.activateTab === 'function') {
+      window.activateTab('scurve3');
+      return;
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tab') === 'scurve3');
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.toggle('active', p.id === 'tab-scurve3');
+    });
+    const s3btn = document.getElementById('scurve3Btn');
+    if (s3btn) s3btn.classList.add('active-tool');
+    window.renderSCurve3();
+  }
+
   window.setupSCurve3Controls = function setupSCurve3Controls() {
     document.querySelectorAll('.scurve3-toggle').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
       btn.addEventListener('click', () => {
         const area = btn.getAttribute('data-area');
         window.SCURVE3_VISIBLE[area] = !window.SCURVE3_VISIBLE[area];
@@ -181,60 +221,94 @@
       });
     });
     const realChk = document.getElementById('scurve3ShowReal');
-    if (realChk) {
+    if (realChk && realChk.dataset.bound !== '1') {
+      realChk.dataset.bound = '1';
       realChk.addEventListener('change', () => {
         window.SCURVE3_SHOW_REAL = !!realChk.checked;
         window.renderSCurve3();
       });
     }
     const hdr = document.getElementById('scurve3Btn');
-    if (hdr) {
-      hdr.addEventListener('click', () => {
-        const tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
-        if (tabBtn && tabBtn.style.display === 'none') return;
-        if (typeof activateTab === 'function') activateTab('scurve3');
+    if (hdr && hdr.dataset.bound !== '1') {
+      hdr.dataset.bound = '1';
+      hdr.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openSCurve3();
+      });
+    }
+    const tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
+    if (tabBtn && tabBtn.dataset.bound !== '1') {
+      tabBtn.dataset.bound = '1';
+      tabBtn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        openSCurve3();
       });
     }
   };
 
-  // Hook after DOM ready
   function tryHook() {
-    if (typeof activateTab === 'function') {
-      const _act = activateTab;
-      window.activateTab = function (tab) {
-        _act(tab);
-        if (tab === 'scurve3') {
-          window.renderSCurve3();
-          if (window.sCurve3Chart) setTimeout(() => { try { window.sCurve3Chart.resize(); } catch (_) {} }, 40);
-        }
-        const s3btn = document.getElementById('scurve3Btn');
-        if (s3btn) s3btn.classList.toggle('active-tool', tab === 'scurve3');
-      };
+    if (window.__PCM_SCURVE3_HOOKED__) {
+      window.setupSCurve3Controls();
+      showSCurve3UI(canUseSCurve3());
+      return true;
     }
+    if (typeof activateTab !== 'function') return false;
+
+    const _act = activateTab;
+    window.activateTab = function (tab) {
+      if (tab === 'scurve3') {
+        showSCurve3UI(true);
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.toggle('active', b.getAttribute('data-tab') === 'scurve3');
+        });
+        document.querySelectorAll('.tab-panel').forEach(p => {
+          p.classList.toggle('active', p.id === 'tab-scurve3');
+        });
+        const s3btn = document.getElementById('scurve3Btn');
+        if (s3btn) s3btn.classList.add('active-tool');
+        window.renderSCurve3();
+        if (window.sCurve3Chart) setTimeout(() => { try { window.sCurve3Chart.resize(); } catch (_) {} }, 40);
+        return;
+      }
+      _act(tab);
+      const s3btn = document.getElementById('scurve3Btn');
+      if (s3btn) s3btn.classList.toggle('active-tool', false);
+    };
+
     if (typeof setupTabsForRole === 'function') {
       const _setup = setupTabsForRole;
       window.setupTabsForRole = function () {
         _setup();
-        const s3btn = document.getElementById('scurve3Btn');
-        const tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
-        // show scurve3 for supervisor/admin same as scurve
-        if (tabBtn) {
-          const scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
-          if (scurveBtn) tabBtn.style.display = scurveBtn.style.display;
-        }
-        if (s3btn) {
-          const scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
-          s3btn.style.display = scurveBtn ? scurveBtn.style.display : 'none';
-        }
+        showSCurve3UI(canUseSCurve3());
         window.setupSCurve3Controls();
       };
+      try { window.setupTabsForRole(); } catch (_) {
+        showSCurve3UI(canUseSCurve3());
+      }
+    } else {
+      showSCurve3UI(canUseSCurve3());
     }
+
     window.setupSCurve3Controls();
+    window.__PCM_SCURVE3_HOOKED__ = true;
+    return true;
+  }
+
+  let attempts = 0;
+  function bootHook() {
+    attempts += 1;
+    if (tryHook()) return;
+    if (attempts < 40) setTimeout(bootHook, 150);
+    else {
+      window.setupSCurve3Controls();
+      showSCurve3UI(true);
+    }
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(tryHook, 50));
+    document.addEventListener('DOMContentLoaded', bootHook);
   } else {
-    setTimeout(tryHook, 50);
+    bootHook();
   }
 })();
