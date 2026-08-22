@@ -1,0 +1,10 @@
+.scurve3-btn{white-space:nowrap;font-size:12px;padding:7px 12px;border-color:var(--blue);color:var(--blue)}
+.scurve3-btn:hover{background:rgba(91,159,227,0.12);border-color:var(--blue);color:var(--blue)}
+.scurve3-btn.active-tool{background:rgba(91,159,227,0.18);border-color:var(--blue);color:#fff}
+.scurve3-toggles{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px}
+.scurve3-toggle{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text-muted);background:var(--panel-alt);border:1px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;opacity:.45}
+.scurve3-toggle.active{opacity:1;color:var(--text);background:#1A222B}
+.scurve3-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.scurve3-real-opt{margin-left:auto;font-size:12.5px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.scurve3-readout{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-muted)}
+.scurve3-readout strong{font-family:var(--font-mono);font-size:14px;color:var(--text)}
