@@ -1,4 +1,4 @@
-/* Curva S x3 v4.0.2.5 — login obrigatorio + token no fetch */
+/* Curva S x3 — modulo ISOLADO (nao mexe em sCurveChart / Curva S por disciplina) */
 (function () {
   if (window.__PCM_SCURVE3__) return;
   window.__PCM_SCURVE3__ = true;
@@ -14,23 +14,39 @@
   };
 
   function getToken() {
-    try {
-      if (typeof TOKEN !== 'undefined' && TOKEN) return TOKEN;
-    } catch (e) {}
-    try {
-      return localStorage.getItem('pcm_token') || null;
-    } catch (e) {
-      return null;
-    }
+    try { if (typeof TOKEN !== 'undefined' && TOKEN) return TOKEN; } catch (e) {}
+    try { return localStorage.getItem('pcm_token') || null; } catch (e) { return null; }
   }
 
-  async function loadSCurve3Data(force) {
-    if (window.SCURVE3_CACHE && !force) return window.SCURVE3_CACHE;
-    var tok = getToken();
-    if (!tok) {
-      console.warn('[scurve3] sem token — faca login');
-      throw new Error('Faca login para ver a Curva S x3');
+  function destroyOnlyS3() {
+    if (window.sCurve3Chart) {
+      try { window.sCurve3Chart.destroy(); } catch (e) {}
+      window.sCurve3Chart = null;
     }
+    try {
+      var c = document.getElementById('sCurve3Chart');
+      if (c && typeof Chart !== 'undefined' && Chart.getChart) {
+        var ch = Chart.getChart(c);
+        if (ch) ch.destroy();
+      }
+    } catch (e) {}
+  }
+
+  function sanitizeDisciplineSCurve() {
+    try {
+      var c = document.getElementById('sCurveChart');
+      if (!c || typeof Chart === 'undefined' || !Chart.getChart) return;
+      var ch = Chart.getChart(c);
+      if (!ch) return;
+      if (ch.data && ch.data.datasets && ch.data.datasets.length > 2) {
+        ch.destroy();
+      }
+    } catch (e) {}
+  }
+
+  async function loadDashboard() {
+    var tok = getToken();
+    if (!tok) throw new Error('Faca login para ver a Curva S x3');
     var res = await fetch('/api/dashboard', {
       headers: {
         'Content-Type': 'application/json',
@@ -44,16 +60,14 @@
     return data;
   }
 
-  function unifySCurve3Timeline(areasData) {
+  function unify(areasData) {
     var dateSet = {};
     var areaSeries = {};
-    var areas = ['ELETRICA', 'MECANICA', 'TGM'];
-    for (var ai = 0; ai < areas.length; ai++) {
-      var area = areas[ai];
+    ['ELETRICA', 'MECANICA', 'TGM'].forEach(function (area) {
       var block = areasData && areasData[area];
       if (!block) {
         areaSeries[area] = { mapP: {}, mapR: {}, lastP: 0, lastR: 0, label: area };
-        continue;
+        return;
       }
       var curve = block.curve || {};
       var labels = curve.labels || [];
@@ -73,48 +87,31 @@
         lastR: real.length ? Number(real[real.length - 1]) || 0 : 0,
         label: block.label || area
       };
-    }
+    });
     function labKey(lab) {
       var m = String(lab).match(/(\d{2})\/(\d{2})/);
       if (m) return Number(m[2]) * 100 + Number(m[1]);
       return String(lab);
     }
-    var labelsOut = Object.keys(dateSet).sort(function (a, b) {
+    var labels = Object.keys(dateSet).sort(function (a, b) {
       var ka = labKey(a), kb = labKey(b);
-      if (ka < kb) return -1;
-      if (ka > kb) return 1;
-      return 0;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
     });
-    return { labels: labelsOut, areaSeries: areaSeries };
+    return { labels: labels, areaSeries: areaSeries };
   }
 
-  function resizeSCurve3Soon() {
-    [50, 150, 400, 800].forEach(function (ms) {
+  function resizeSoon() {
+    [40, 120, 300, 600].forEach(function (ms) {
       setTimeout(function () {
-        try {
-          if (window.sCurve3Chart) window.sCurve3Chart.resize();
-        } catch (e) {}
+        try { if (window.sCurve3Chart) window.sCurve3Chart.resize(); } catch (e) {}
       }, ms);
     });
   }
 
-  function destroySCurve3() {
-    if (window.sCurve3Chart) {
-      try { window.sCurve3Chart.destroy(); } catch (e) {}
-      window.sCurve3Chart = null;
-    }
-  }
-
   window.renderSCurve3 = async function renderSCurve3() {
     var canvas = document.getElementById('sCurve3Chart');
-    if (!canvas) {
-      console.warn('[scurve3] canvas #sCurve3Chart nao encontrado');
-      return;
-    }
-    if (typeof Chart === 'undefined') {
-      console.warn('[scurve3] Chart.js nao carregado');
-      return;
-    }
+    if (!canvas) return;
+    if (typeof Chart === 'undefined') return;
     var box = canvas.parentElement;
     if (box) {
       box.style.minHeight = '420px';
@@ -123,31 +120,30 @@
 
     var dash;
     try {
-      dash = await loadSCurve3Data(true);
+      dash = await loadDashboard();
     } catch (e) {
-      destroySCurve3();
-      console.error('[scurve3] dashboard', e);
+      destroyOnlyS3();
+      console.error('[scurve3]', e);
       alert('Curva S x3: ' + (e.message || e));
       return;
     }
 
     var areasObj = (dash && dash.areas) ? dash.areas : dash;
-    if (!areasObj) {
-      destroySCurve3();
-      return;
-    }
+    if (!areasObj) { destroyOnlyS3(); return; }
 
-    var unified = unifySCurve3Timeline(areasObj);
-    var labels = unified.labels;
-    var areaSeries = unified.areaSeries;
+    var u = unify(areasObj);
+    var labels = u.labels;
+    var areaSeries = u.areaSeries;
 
     ['ELETRICA', 'MECANICA', 'TGM'].forEach(function (area) {
       var el = document.getElementById('scurve3Pct' + area);
       if (!el) return;
       var s = areaSeries[area];
       if (!s || !Object.keys(s.mapP).length) el.textContent = 'sem dados';
-      else el.textContent = s.lastP.toFixed(1) + '% plan' +
-        (window.SCURVE3_SHOW_REAL ? ' · ' + s.lastR.toFixed(1) + '% real' : '');
+      else {
+        el.textContent = s.lastP.toFixed(1) + '% plan' +
+          (window.SCURVE3_SHOW_REAL ? ' · ' + s.lastR.toFixed(1) + '% real' : '');
+      }
     });
 
     var colors = window.SCURVE3_COLORS;
@@ -168,7 +164,6 @@
         backgroundColor: colors[area].fill,
         borderWidth: 2.5,
         pointRadius: 2,
-        pointHoverRadius: 5,
         fill: false,
         tension: 0.25,
         spanGaps: true
@@ -184,7 +179,6 @@
           label: (s.label || area) + ' · Real',
           data: filledR,
           borderColor: colors[area].line,
-          backgroundColor: 'transparent',
           borderWidth: 2,
           borderDash: [6, 4],
           pointRadius: 0,
@@ -196,12 +190,11 @@
     });
 
     if (!labels.length || !datasets.length) {
-      destroySCurve3();
+      destroyOnlyS3();
       return;
     }
 
-    destroySCurve3();
-
+    destroyOnlyS3();
     window.sCurve3Chart = new Chart(canvas.getContext('2d'), {
       type: 'line',
       data: { labels: labels, datasets: datasets },
@@ -244,45 +237,59 @@
         }
       }
     });
-    resizeSCurve3Soon();
+    resizeSoon();
   };
 
-  function showSCurve3UI(show) {
+  function showS3Tab(on) {
     var tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
-    var s3btn = document.getElementById('scurve3Btn');
-    var disp = show ? '' : 'none';
-    if (tabBtn) tabBtn.style.display = disp;
-    if (s3btn) s3btn.style.display = disp;
+    var hdr = document.getElementById('scurve3Btn');
+    var d = on ? '' : 'none';
+    if (tabBtn) tabBtn.style.display = d;
+    if (hdr) hdr.style.display = d;
   }
 
   function openSCurve3() {
-    console.info('[scurve3] openSCurve3');
-    showSCurve3UI(true);
+    console.info('[scurve3] open (isolado)');
+    showS3Tab(true);
     document.querySelectorAll('.tab-btn').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-tab') === 'scurve3');
     });
     document.querySelectorAll('.tab-panel').forEach(function (p) {
       p.classList.toggle('active', p.id === 'tab-scurve3');
     });
-    var s3btn = document.getElementById('scurve3Btn');
-    if (s3btn) s3btn.classList.add('active-tool');
+    var hdr = document.getElementById('scurve3Btn');
+    if (hdr) hdr.classList.add('active-tool');
     var tabbar = document.getElementById('tabbar');
     if (tabbar) tabbar.style.display = '';
     window.renderSCurve3().catch(function (e) {
-      console.error('[scurve3] render', e);
+      console.error('[scurve3]', e);
     });
   }
   window.openSCurve3 = openSCurve3;
+
+  function leaveSCurve3() {
+    var hdr = document.getElementById('scurve3Btn');
+    if (hdr) hdr.classList.remove('active-tool');
+    destroyOnlyS3();
+    sanitizeDisciplineSCurve();
+  }
 
   if (!window.__PCM_SCURVE3_CLICK__) {
     window.__PCM_SCURVE3_CLICK__ = true;
     document.addEventListener('click', function (ev) {
       var t = ev.target && ev.target.closest &&
         ev.target.closest('#scurve3Btn, .tab-btn[data-tab="scurve3"], .scurve3-btn');
-      if (!t) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      openSCurve3();
+      if (t) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openSCurve3();
+        return;
+      }
+      var other = ev.target && ev.target.closest &&
+        ev.target.closest('.tab-btn:not([data-tab="scurve3"])');
+      if (other) {
+        leaveSCurve3();
+      }
     }, true);
   }
 
@@ -311,55 +318,23 @@
     }
   }
 
-  function tryHook() {
-    if (window.__PCM_SCURVE3_HOOKED__) {
-      bindToggles();
-      showSCurve3UI(true);
-      return true;
-    }
-    if (typeof activateTab !== 'function') return false;
+  function syncVisibility() {
+    var scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
+    var show = false;
+    if (scurveBtn && scurveBtn.style.display !== 'none') show = true;
+    if (getToken()) show = true;
+    try {
+      if (typeof USER !== 'undefined' && USER === null && !getToken()) show = false;
+    } catch (e) {}
+    showS3Tab(show);
+  }
 
-    var _act = activateTab;
-    window.activateTab = function (tab) {
-      if (tab === 'scurve3') {
-        openSCurve3();
-        return;
-      }
-      _act(tab);
-      var s3btn = document.getElementById('scurve3Btn');
-      if (s3btn) s3btn.classList.remove('active-tool');
-    };
-
-    if (typeof setupTabsForRole === 'function') {
-      var _setup = setupTabsForRole;
-      window.setupTabsForRole = function () {
-        _setup();
-        var scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
-        var show = !!(scurveBtn && scurveBtn.style.display !== 'none') || !!getToken();
-        showSCurve3UI(show);
-        bindToggles();
-      };
-      try { window.setupTabsForRole(); } catch (e) {}
-    }
-
-    showSCurve3UI(true);
+  setInterval(function () {
+    syncVisibility();
     bindToggles();
-    window.__PCM_SCURVE3_HOOKED__ = true;
-    return true;
-  }
+  }, 800);
 
-  var attempts = 0;
-  function bootHook() {
-    attempts += 1;
-    if (tryHook()) return;
-    if (attempts < 60) setTimeout(bootHook, 100);
-    else {
-      showSCurve3UI(true);
-      bindToggles();
-    }
-  }
-
-  showSCurve3UI(true);
+  showS3Tab(true);
   bindToggles();
-  bootHook();
+  setTimeout(sanitizeDisciplineSCurve, 500);
 })();
