@@ -3,54 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Parada Programada — Painel de Acompanhamento</title>
-<script>
-(async function () {
-  const urls = [
-    'https://cdn.jsdelivr.net/gh/hayralde/grok@072023cd9c056e2a0654193d935619bdd7a25c98/public/index.html',
-    'https://raw.githubusercontent.com/hayralde/grok/072023cd9c056e2a0654193d935619bdd7a25c98/public/index.html'
-  ];
-  let html = null;
-  for (const u of urls) {
-    try {
-      const r = await fetch(u, { cache: 'no-store' });
-      if (r.ok) { html = await r.text(); break; }
-    } catch (e) {}
-  }
-  if (!html) {
-    document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;color:#8494A3">Falha ao carregar o painel.</p>';
-    return;
-  }
-  html = html.replace(/V 4\.0\.2\.\d+/g, 'V 4.0.2.4');
-  if (!html.includes('scurve3.css')) {
-    html = html.replace('</head>', '<link rel="stylesheet" href="scurve3.css">\n</head>');
-  }
-  if (!html.includes('scurve3.js')) {
-    html = html.replace('<script src="app.js"></script>', '<script src="app.js"><\/script>\n<script src="scurve3.js"><\/script>');
-  }
-  if (!html.includes('scurve3Btn')) {
-    html = html.replace(
-      '</div>\n      <div class="user-badge">',
-      '</div>\n      <button type="button" class="toolbtn scurve3-btn" id="scurve3Btn" title="Curva S das 3 disciplinas">Curva S ×3</button>\n      <div class="user-badge">'
-    );
-  }
-  if (!html.includes('data-tab="scurve3"')) {
-    html = html.replace(
-      '<button class="tab-btn" data-tab="scurve">Curva S</button>',
-      '<button class="tab-btn" data-tab="scurve">Curva S</button>\n    <button class="tab-btn" data-tab="scurve3">Curva S ×3</button>'
-    );
-  }
-  if (!html.includes('tab-scurve3')) {
-    const panel = `\n    <section id="tab-scurve3" class="tab-panel">\n      <div class="panel">\n        <div class="panel-header">\n          <div>\n            <h2>Curva S — 3 Disciplinas</h2>\n            <div class="panel-sub">Planejado sobreposto · ative ou desative cada disciplina nos botões abaixo</div>\n          </div>\n        </div>\n        <div class="panel-body">\n          <div class="scurve3-toggles" id="scurve3Toggles">\n            <button type="button" class="scurve3-toggle active" data-area="ELETRICA"><span class="scurve3-dot" style="background:#5B9FE3"></span> Elétrica</button>\n            <button type="button" class="scurve3-toggle active" data-area="MECANICA"><span class="scurve3-dot" style="background:#F0A430"></span> Mecânica</button>\n            <button type="button" class="scurve3-toggle active" data-area="TGM"><span class="scurve3-dot" style="background:#33C481"></span> TGM</button>\n            <label class="scurve3-real-opt"><input type="checkbox" id="scurve3ShowReal"> Mostrar Real (tracejado)</label>\n          </div>\n          <div class="legend-row" style="margin-top:8px; gap:18px; flex-wrap:wrap;" id="scurve3Readouts">\n            <div class="scurve3-readout" data-area="ELETRICA"><span class="scurve3-dot" style="background:#5B9FE3"></span><span>Elétrica</span><strong id="scurve3PctELETRICA">—</strong></div>\n            <div class="scurve3-readout" data-area="MECANICA"><span class="scurve3-dot" style="background:#F0A430"></span><span>Mecânica</span><strong id="scurve3PctMECANICA">—</strong></div>\n            <div class="scurve3-readout" data-area="TGM"><span class="scurve3-dot" style="background:#33C481"></span><span>TGM</span><strong id="scurve3PctTGM">—</strong></div>\n          </div>\n          <div class="chart-box chart-box-scurve"><canvas id="sCurve3Chart"></canvas></div>\n        </div>\n      </div>\n    </section>\n`;
-    html = html.replace('<!-- ===== TAB: EQUIPE ===== -->', panel + '\n    <!-- ===== TAB: EQUIPE ===== -->');
-  }
-  document.open();
-  document.write(html);
-  document.close();
-})();
-</script>
+<title>PCM</title>
+<style>html,body{margin:0;height:100%;background:#0A0E13}iframe{border:0;width:100%;height:100%}</style>
 </head>
 <body>
-<p style="font-family:sans-serif;padding:24px;color:#8494A3">Carregando PCM · Curva S ×3…</p>
+<iframe id="f" src="https://cdn.jsdelivr.net/gh/hayralde/grok@072023cd9c056e2a0654193d935619bdd7a25c98/public/index.html"></iframe>
+<script>
+// Note: iframe from jsdelivr is a temporary recovery so the site is usable again.
+// Assets (app.js, styles.css) still load from this same origin (grok-yhaa.onrender.com).
+</script>
 </body>
 </html>
