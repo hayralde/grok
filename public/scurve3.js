@@ -35,13 +35,33 @@
   function sanitizeDisciplineSCurve() {
     try {
       var c = document.getElementById('sCurveChart');
-      if (!c || typeof Chart === 'undefined' || !Chart.getChart) return;
-      var ch = Chart.getChart(c);
-      if (!ch) return;
-      if (ch.data && ch.data.datasets && ch.data.datasets.length > 2) {
-        ch.destroy();
+      if (c && typeof Chart !== 'undefined' && Chart.getChart) {
+        var ch = Chart.getChart(c);
+        if (ch && ch.data && ch.data.datasets && ch.data.datasets.length > 2) {
+          try { ch.destroy(); } catch (e) {}
+        }
       }
+      try { if (typeof sCurveChart !== 'undefined') sCurveChart = null; } catch (e) {}
     } catch (e) {}
+  }
+
+  function wrapRenderSCurve() {
+    if (window.__PCM_SCURVE3_WRAP_RS__) return;
+    if (typeof window.renderSCurve !== 'function') return;
+    window.__PCM_SCURVE3_WRAP_RS__ = true;
+    var _orig = window.renderSCurve;
+    window.renderSCurve = function () {
+      sanitizeDisciplineSCurve();
+      try {
+        return _orig.apply(this, arguments);
+      } catch (e) {
+        console.warn('[scurve3] renderSCurve retry', e);
+        try { if (typeof sCurveChart !== 'undefined') sCurveChart = null; } catch (e2) {}
+        try { return _orig.apply(this, arguments); } catch (e3) {
+          console.error('[scurve3] renderSCurve fail', e3);
+        }
+      }
+    };
   }
 
   async function loadDashboard() {
@@ -332,9 +352,11 @@
   setInterval(function () {
     syncVisibility();
     bindToggles();
+    wrapRenderSCurve();
   }, 800);
 
   showS3Tab(true);
   bindToggles();
+  wrapRenderSCurve();
   setTimeout(sanitizeDisciplineSCurve, 500);
 })();
