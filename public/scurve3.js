@@ -190,7 +190,7 @@
         },
         scales: {
           x: { grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 14, padding: 6 } },
-          y: { min: 0, max: 100, grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, stepSize: 10, padding: 8, callback: v => v + '%' }
+          y: { min: 0, max: 100, grid: { color: '#1A222B' }, ticks: { color: '#8494A3', font: { family: 'IBM Plex Mono', size: 11 }, stepSize: 10, padding: 8, callback: v => v + '%' } }
         }
       }
     });
@@ -201,6 +201,7 @@
     try {
       if (typeof USER !== 'undefined' && USER && (USER.role === 'admin' || USER.role === 'supervisor')) return true;
     } catch (_) {}
+    try { if (localStorage.getItem('pcm_token')) return true; } catch (_) {}
     const scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
     if (scurveBtn && scurveBtn.style.display !== 'none') return true;
     return false;
@@ -215,15 +216,8 @@
   }
 
   function openSCurve3() {
-    if (!canUseSCurve3()) {
-      alert('Faça login como supervisor ou administrador para usar a Curva S ×3.');
-      return;
-    }
+    console.info('[scurve3] openSCurve3');
     showSCurve3UI(true);
-    if (typeof window.activateTab === 'function') {
-      window.activateTab('scurve3');
-      return;
-    }
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.classList.toggle('active', b.getAttribute('data-tab') === 'scurve3');
     });
@@ -232,8 +226,14 @@
     });
     const s3btn = document.getElementById('scurve3Btn');
     if (s3btn) s3btn.classList.add('active-tool');
-    Promise.resolve(window.renderSCurve3()).then(() => resizeSCurve3Soon());
+    const tabbar = document.getElementById('tabbar');
+    if (tabbar) tabbar.style.display = '';
+    Promise.resolve(window.renderSCurve3()).then(() => resizeSCurve3Soon()).catch(e => {
+      console.error('[scurve3] render', e);
+      alert('Erro ao carregar Curva S ×3: ' + (e && e.message ? e.message : e));
+    });
   }
+  window.openSCurve3 = openSCurve3;
 
   window.setupSCurve3Controls = function setupSCurve3Controls() {
     document.querySelectorAll('.scurve3-toggle').forEach(btn => {
@@ -258,67 +258,49 @@
         window.renderSCurve3();
       });
     }
-    const hdr = document.getElementById('scurve3Btn');
-    if (hdr && hdr.dataset.bound !== '1') {
-      hdr.dataset.bound = '1';
-      hdr.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openSCurve3();
-      });
-    }
-    const tabBtn = document.querySelector('.tab-btn[data-tab="scurve3"]');
-    if (tabBtn && tabBtn.dataset.bound !== '1') {
-      tabBtn.dataset.bound = '1';
-      tabBtn.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        openSCurve3();
-      });
-    }
   };
+
+  // Delegacao global de clique — nao depende de bind no botao
+  if (!window.__PCM_SCURVE3_CLICK__) {
+    window.__PCM_SCURVE3_CLICK__ = true;
+    document.addEventListener('click', function (ev) {
+      const t = ev.target && ev.target.closest && ev.target.closest('#scurve3Btn, .tab-btn[data-tab="scurve3"], .scurve3-btn');
+      if (!t) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      openSCurve3();
+    }, true);
+  }
 
   function tryHook() {
     if (window.__PCM_SCURVE3_HOOKED__) {
       window.setupSCurve3Controls();
-      showSCurve3UI(canUseSCurve3());
+      showSCurve3UI(true);
       return true;
     }
     if (typeof activateTab !== 'function') return false;
 
     const _act = activateTab;
     window.activateTab = function (tab) {
-      if (tab === 'scurve3') {
-        showSCurve3UI(true);
-        document.querySelectorAll('.tab-btn').forEach(b => {
-          b.classList.toggle('active', b.getAttribute('data-tab') === 'scurve3');
-        });
-        document.querySelectorAll('.tab-panel').forEach(p => {
-          p.classList.toggle('active', p.id === 'tab-scurve3');
-        });
-        const s3btn = document.getElementById('scurve3Btn');
-        if (s3btn) s3btn.classList.add('active-tool');
-        Promise.resolve(window.renderSCurve3()).then(() => resizeSCurve3Soon());
-        return;
-      }
+      if (tab === 'scurve3') { openSCurve3(); return; }
       _act(tab);
       const s3btn = document.getElementById('scurve3Btn');
-      if (s3btn) s3btn.classList.toggle('active-tool', false);
+      if (s3btn) s3btn.classList.remove('active-tool');
     };
 
     if (typeof setupTabsForRole === 'function') {
       const _setup = setupTabsForRole;
       window.setupTabsForRole = function () {
         _setup();
-        showSCurve3UI(canUseSCurve3());
+        const scurveBtn = document.querySelector('.tab-btn[data-tab="scurve"]');
+        const show = !!(scurveBtn && scurveBtn.style.display !== 'none') || canUseSCurve3();
+        showSCurve3UI(show || !!localStorage.getItem('pcm_token'));
         window.setupSCurve3Controls();
       };
-      try { window.setupTabsForRole(); } catch (_) {
-        showSCurve3UI(canUseSCurve3());
-      }
-    } else {
-      showSCurve3UI(canUseSCurve3());
+      try { window.setupTabsForRole(); } catch (_) {}
     }
 
+    showSCurve3UI(true);
     window.setupSCurve3Controls();
     window.__PCM_SCURVE3_HOOKED__ = true;
     return true;
@@ -328,16 +310,10 @@
   function bootHook() {
     attempts += 1;
     if (tryHook()) return;
-    if (attempts < 40) setTimeout(bootHook, 150);
-    else {
-      window.setupSCurve3Controls();
-      showSCurve3UI(true);
-    }
+    if (attempts < 50) setTimeout(bootHook, 100);
+    else { showSCurve3UI(true); window.setupSCurve3Controls(); }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootHook);
-  } else {
-    bootHook();
-  }
+  showSCurve3UI(true);
+  bootHook();
 })();
