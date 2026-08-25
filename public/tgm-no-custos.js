@@ -1,43 +1,67 @@
-/* Esconde aba Custos para usuario TGM (area_scope=TGM, ex.: supertgm) */
+/* Restricoes do usuario TGM (area_scope=TGM, ex.: supertgm):
+   - esconde aba Custos
+   - esconde botao Curva S x3 (header) */
 (function () {
-  function hideCustosForTgm() {
+  function isTgmUser() {
     try {
-      if (typeof USER === 'undefined' || !USER || !USER.area_scope) return;
-      if (String(USER.area_scope).toUpperCase() !== 'TGM') return;
-      var btn = document.querySelector('.tab-btn[data-tab="custos"]');
-      if (btn) btn.style.display = 'none';
-      var panel = document.getElementById('tab-custos');
-      if (panel && panel.classList.contains('active')) {
-        if (typeof activateTab === 'function') activateTab('tarefas');
-      }
-    } catch (e) {}
+      if (typeof USER === 'undefined' || !USER || !USER.area_scope) return false;
+      return String(USER.area_scope).toUpperCase() === 'TGM';
+    } catch (e) { return false; }
+  }
+
+  function applyTgmRestrictions() {
+    if (!isTgmUser()) return;
+
+    // Aba Custos
+    var custosBtn = document.querySelector('.tab-btn[data-tab="custos"]');
+    if (custosBtn) custosBtn.style.display = 'none';
+    var custosPanel = document.getElementById('tab-custos');
+    if (custosPanel && custosPanel.classList.contains('active')) {
+      if (typeof activateTab === 'function') activateTab('tarefas');
+    }
+
+    // Botao Curva S x3 (header + eventuais variantes)
+    var hdr = document.getElementById('scurve3Btn');
+    if (hdr) {
+      hdr.style.display = 'none';
+      hdr.classList.remove('active-tool');
+    }
+    document.querySelectorAll('.scurve3-btn, .tab-btn[data-tab="scurve3"]').forEach(function (el) {
+      el.style.display = 'none';
+      el.classList.remove('active');
+    });
+
+    // Se estiver no painel x3, volta para tarefas
+    var s3panel = document.getElementById('tab-scurve3');
+    if (s3panel && s3panel.classList.contains('active')) {
+      if (typeof activateTab === 'function') activateTab('tarefas');
+    }
   }
 
   function wrapSetup() {
-    if (window.__PCM_TGM_NO_CUSTOS__) return;
+    if (window.__PCM_TGM_RESTRICTIONS__) return;
     if (typeof setupTabsForRole !== 'function') return;
-    window.__PCM_TGM_NO_CUSTOS__ = true;
+    window.__PCM_TGM_RESTRICTIONS__ = true;
     var _orig = setupTabsForRole;
     window.setupTabsForRole = function () {
       _orig();
-      hideCustosForTgm();
+      applyTgmRestrictions();
     };
-    hideCustosForTgm();
+    applyTgmRestrictions();
   }
 
-  var n = 0;
-  var t = setInterval(function () {
-    n++;
+  // Intervalo continuo: scurve3.js reexibe o botao periodicamente
+  setInterval(function () {
     wrapSetup();
-    hideCustosForTgm();
-    if (window.__PCM_TGM_NO_CUSTOS__ || n > 100) clearInterval(t);
-  }, 100);
+    applyTgmRestrictions();
+  }, 400);
+
   document.addEventListener('DOMContentLoaded', function () {
     wrapSetup();
-    hideCustosForTgm();
+    applyTgmRestrictions();
   });
   window.addEventListener('load', function () {
     wrapSetup();
-    hideCustosForTgm();
+    applyTgmRestrictions();
   });
 })();
