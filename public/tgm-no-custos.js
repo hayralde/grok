@@ -1,5 +1,5 @@
 /* PCM UI fixes:
-   1) Usuario TGM (supertgm): esconde Custos e Curva S x3
+   1) Usuario TGM (supertgm): esconde Custos
    2) Preserva a aba ativa em atualizacoes em tempo real (nao volta pro inicio) */
 (function () {
   function isTgmUser() {
@@ -16,21 +16,6 @@
     if (custosBtn) custosBtn.style.display = 'none';
     var custosPanel = document.getElementById('tab-custos');
     if (custosPanel && custosPanel.classList.contains('active')) {
-      if (typeof activateTab === 'function') activateTab('tarefas');
-    }
-
-    var hdr = document.getElementById('scurve3Btn');
-    if (hdr) {
-      hdr.style.display = 'none';
-      hdr.classList.remove('active-tool');
-    }
-    document.querySelectorAll('.scurve3-btn, .tab-btn[data-tab="scurve3"]').forEach(function (el) {
-      el.style.display = 'none';
-      el.classList.remove('active');
-    });
-
-    var s3panel = document.getElementById('tab-scurve3');
-    if (s3panel && s3panel.classList.contains('active')) {
       if (typeof activateTab === 'function') activateTab('tarefas');
     }
   }
@@ -86,7 +71,6 @@
         if (tab === 'equipe' && typeof renderEquipe === 'function') return renderEquipe();
         if (tab === 'tarefas' && typeof renderTarefas === 'function') return renderTarefas();
         if (tab === 'custos' && typeof renderCustos === 'function') return renderCustos();
-        if (tab === 'scurve3' && typeof renderSCurve3 === 'function') return renderSCurve3();
       } catch (e) {
         console.warn('[PCM] renderAll preserve', e);
       }
