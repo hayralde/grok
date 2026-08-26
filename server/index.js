@@ -45,6 +45,42 @@ function csvEscape(value) {
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
+/**
+ * Curva Planejado x Real a partir do historico de eventos (task_events).
+ * `checkpoints` é a lista de datas de corte (uma por ponto do gráfico).
+ * Diferente de "done && fim <= checkpoint", o Real aqui reconstrói o
+ * estado (marcado/desmarcado) tarefa a tarefa em cada checkpoint —
+ * por isso a curva consegue subir E cair ao longo do tempo.
+ */
+function computeCurve(tasks, events, checkpoints) {
+  const totalHours = tasks.reduce((s, t) => s + (Number(t.horas) || 0), 0);
+  const horasById = new Map(tasks.map(t => [t.id, Number(t.horas) || 0]));
+  const sortedEvents = events.slice().sort((a, b) => new Date(a.at) - new Date(b.at));
+
+  const planned = checkpoints.map(d => {
+    const h = tasks.filter(t => new Date(t.fim) <= d).reduce((s, t) => s + (Number(t.horas) || 0), 0);
+    return totalHours > 0 ? +(h / totalHours * 100).toFixed(2) : 0;
+  });
+
+  const doneState = new Map();
+  let runningDoneHours = 0;
+  let idx = 0;
+  const real = checkpoints.map(d => {
+    while (idx < sortedEvents.length && new Date(sortedEvents[idx].at) <= d) {
+      const ev = sortedEvents[idx];
+      const horas = horasById.get(ev.task_id) || 0;
+      const wasDone = doneState.get(ev.task_id) || false;
+      if (ev.done && !wasDone) runningDoneHours += horas;
+      if (!ev.done && wasDone) runningDoneHours -= horas;
+      doneState.set(ev.task_id, !!ev.done);
+      idx++;
+    }
+    return totalHours > 0 ? +(runningDoneHours / totalHours * 100).toFixed(2) : 0;
+  });
+
+  return { planned, real, totalHours };
+}
+
 function formatDateTimeBR(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -112,6 +148,10 @@ app.get('/api/dashboard', authRequired, async (req, res) => {
         'SELECT id, inicio, fim, horas, done, done_at FROM tasks WHERE area = $1 ORDER BY id',
         [area]
       );
+      const { rows: events } = await pool.query(
+        'SELECT task_id, done, at FROM task_events WHERE area = $1 ORDER BY at ASC',
+        [area]
+      );
 
       const total = tasks.length;
       const doneCount = tasks.filter(t => t.done).length;
@@ -128,30 +168,22 @@ app.get('/api/dashboard', authRequired, async (req, res) => {
       const pf = meta.projectFinish ? new Date(meta.projectFinish) : null;
       if (ps && pf && !isNaN(ps.getTime()) && !isNaN(pf.getTime()) && pf > ps && horasTotal > 0) {
         const dayMs = 24 * 3600 * 1000;
+        const now = new Date();
         let cur = new Date(ps);
         cur.setHours(0, 0, 0, 0);
-        const end = new Date(pf);
+        const end = new Date(Math.max(pf.getTime(), now.getTime()));
         end.setHours(23, 59, 59, 999);
+        const dayEnds = [];
         while (cur <= end) {
           const dayEnd = new Date(cur);
           dayEnd.setHours(23, 59, 59, 999);
+          dayEnds.push(dayEnd);
           labels.push(cur.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
-          const pH = tasks
-            .filter(t => new Date(t.fim) <= dayEnd)
-            .reduce((s, t) => s + (Number(t.horas) || 0), 0);
-          planned.push(+(pH / horasTotal * 100).toFixed(2));
-          // Curva independente do planejado: usa a data em que a tarefa foi
-          // de fato concluída (done_at), não a data planejada (fim).
-          const rH = tasks
-            .filter(t => {
-              if (!t.done) return false;
-              const completedAt = t.done_at ? new Date(t.done_at) : new Date(t.fim);
-              return completedAt <= dayEnd;
-            })
-            .reduce((s, t) => s + (Number(t.horas) || 0), 0);
-          real.push(+(rH / horasTotal * 100).toFixed(2));
           cur = new Date(cur.getTime() + dayMs);
         }
+        // Real reconstruído do histórico de eventos: sobe quando uma tarefa é
+        // marcada concluída, cai quando é desmarcada — não é só o último estado.
+        ({ planned, real } = computeCurve(tasks, events, dayEnds));
       }
 
       result[area] = {
@@ -229,6 +261,60 @@ app.get('/api/tasks', authRequired, async (req, res) => {
 
   const { rows } = await pool.query(query, params);
   res.json({ area, tasks: rows });
+});
+
+// ---------- Curva S (Planejado x Real) a partir do historico de eventos ----------
+app.get('/api/scurve', authRequired, async (req, res) => {
+  const area = resolveArea(req);
+  if (!area) return res.status(400).json({ error: 'Area invalida. Use ELETRICA, MECANICA ou TGM.' });
+  const denied = enforceUserArea(req, area);
+  if (denied) return res.status(403).json({ error: denied });
+
+  const { rows: metaRows } = await pool.query(
+    'SELECT key, value FROM meta WHERE key LIKE $1',
+    [area + ':%']
+  );
+  const meta = {};
+  metaRows.forEach(r => { meta[r.key.slice(area.length + 1)] = r.value; });
+
+  const { rows: tasks } = await pool.query(
+    'SELECT id, fim, horas, done FROM tasks WHERE area = $1',
+    [area]
+  );
+  const { rows: events } = await pool.query(
+    'SELECT task_id, done, at FROM task_events WHERE area = $1 ORDER BY at ASC',
+    [area]
+  );
+
+  const ps = meta.projectStart ? new Date(meta.projectStart) : null;
+  const pf = meta.projectFinish ? new Date(meta.projectFinish) : null;
+  const totalHours = tasks.reduce((s, t) => s + (Number(t.horas) || 0), 0);
+
+  if (!ps || !pf || isNaN(ps.getTime()) || isNaN(pf.getTime()) || totalHours === 0) {
+    return res.json({ area, labels: [], planned: [], real: [], plannedNowPct: 0, realNowPct: 0 });
+  }
+
+  const now = new Date();
+  const stepMs = 3 * 3600 * 1000;
+  let cur = new Date(ps); cur.setMinutes(0, 0, 0);
+  const end = new Date(Math.max(pf.getTime(), now.getTime()) + stepMs);
+  const checkpoints = [];
+  while (cur <= end) { checkpoints.push(new Date(cur)); cur = new Date(cur.getTime() + stepMs); }
+
+  const { planned, real } = computeCurve(tasks, events, checkpoints);
+  const labels = checkpoints.map(d => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+
+  const doneHoursNow = tasks.filter(t => t.done).reduce((s, t) => s + (Number(t.horas) || 0), 0);
+  const realNowPct = totalHours > 0 ? (doneHoursNow / totalHours * 100) : 0;
+  const plannedNowPct = totalHours > 0
+    ? (tasks.filter(t => new Date(t.fim) <= now).reduce((s, t) => s + (Number(t.horas) || 0), 0) / totalHours * 100)
+    : 0;
+
+  res.json({
+    area, labels, planned, real,
+    plannedNowPct: +plannedNowPct.toFixed(1),
+    realNowPct: +realNowPct.toFixed(1),
+  });
 });
 
 // ---------- Export da programação em CSV (mesma visibilidade de /api/tasks) ----------
@@ -311,6 +397,13 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
   );
   const updated = rows[0];
 
+  // Registra o evento pra Curva S "Real" poder reconstruir o historico
+  // (subir quando marca, cair quando desmarca) em vez de só o ultimo estado.
+  await pool.query(
+    `INSERT INTO task_events (area, task_id, done, by_user, at) VALUES ($1,$2,$3,$4,$5)`,
+    [area, id, done, doneBy, doneAt || new Date().toISOString()]
+  );
+
   io.emit('task-updated', updated);
   res.json({ task: updated });
 });
@@ -323,10 +416,21 @@ app.post('/api/reset', authRequired, requireRole('admin'), async (req, res) => {
   const area = resolveArea(req);
   if (!area) return res.status(400).json({ error: 'Area invalida. Use ELETRICA, MECANICA ou TGM.' });
 
+  const now = new Date().toISOString();
+  const { rows: wereDone } = await pool.query(
+    `SELECT id FROM tasks WHERE area = $1 AND done = TRUE`,
+    [area]
+  );
   await pool.query(
     `UPDATE tasks SET done = FALSE, done_by = NULL, done_at = NULL WHERE area = $1`,
     [area]
   );
+  for (const t of wereDone) {
+    await pool.query(
+      `INSERT INTO task_events (area, task_id, done, by_user, at) VALUES ($1,$2,FALSE,$3,$4)`,
+      [area, t.id, req.user.nome, now]
+    );
+  }
   io.emit('progress-reset', { area });
   res.json({ ok: true, area });
 });

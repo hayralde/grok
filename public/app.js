@@ -829,53 +829,38 @@ function renderGantt() {
 
 
 // ================= TAB: Curva S =================
-function buildHourBuckets() {
-  const PROJECT_START = new Date(META.projectStart);
-  const PROJECT_FINISH = new Date(META.projectFinish);
-  const buckets = [];
-  let cur = new Date(PROJECT_START); cur.setMinutes(0, 0, 0);
-  const stepMs = 3 * 3600 * 1000;
-  const end = new Date(PROJECT_FINISH.getTime() + stepMs);
-  while (cur <= end) { buckets.push(new Date(cur)); cur = new Date(cur.getTime() + stepMs); }
-  return buckets;
-}
-
-function renderSCurve() {
+// Planejado x Real são buscados prontos do servidor (/api/scurve), que
+// reconstrói o Real a partir do histórico de eventos de conclusão — por
+// isso ele consegue subir (tarefa marcada) e cair (tarefa desmarcada) ao
+// longo do tempo, em vez de só acumular sem nunca poder recuar.
+let sCurveRequestId = 0;
+async function renderSCurve() {
   const canvas = document.getElementById('sCurveChart');
   if (!canvas) return;
 
-  if (!META.projectStart || !META.projectFinish || TASKS.length === 0) {
+  const requestId = ++sCurveRequestId;
+  let data;
+  try {
+    data = await api('/api/scurve');
+  } catch (e) {
+    console.error('[scurve]', e);
+    return;
+  }
+  if (requestId !== sCurveRequestId) return; // resposta antiga (trocou de aba/área nesse meio tempo)
+
+  const labels = data.labels || [];
+  const planned = data.planned || [];
+  const real = data.real || [];
+
+  if (!labels.length) {
     document.getElementById('plannedNowReadout').textContent = '0.0%';
     document.getElementById('realNowReadout').textContent = '0.0%';
     if (sCurveChart) { sCurveChart.destroy(); sCurveChart = null; }
     return;
   }
 
-  const buckets = buildHourBuckets();
-  const totalHours = TASKS.reduce((s, t) => s + Number(t.horas), 0);
-
-  const planned = buckets.map(d => {
-    const h = TASKS.filter(t => new Date(t.fim) <= d).reduce((s, t) => s + Number(t.horas), 0);
-    return totalHours > 0 ? +(h / totalHours * 100).toFixed(2) : 0;
-  });
-  const real = buckets.map(d => {
-    const h = TASKS.filter(t => {
-      if (!t.done) return false;
-      // Curva independente do planejado: usa a data em que a tarefa foi
-      // de fato concluída (done_at), não a data planejada (fim).
-      const completedAt = t.done_at ? new Date(t.done_at) : new Date(t.fim);
-      return completedAt <= d;
-    }).reduce((s, t) => s + Number(t.horas), 0);
-    return totalHours > 0 ? +(h / totalHours * 100).toFixed(2) : 0;
-  });
-  const labels = buckets.map(d => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-
-  const now = new Date();
-  const doneHours = TASKS.filter(t => t.done).reduce((s, t) => s + Number(t.horas), 0);
-  const realNow = totalHours > 0 ? (doneHours / totalHours * 100) : 0;
-  const plannedNow = totalHours > 0 ? (TASKS.filter(t => new Date(t.fim) <= now).reduce((s, t) => s + Number(t.horas), 0) / totalHours * 100) : 0;
-  document.getElementById('plannedNowReadout').textContent = plannedNow.toFixed(1) + '%';
-  document.getElementById('realNowReadout').textContent = realNow.toFixed(1) + '%';
+  document.getElementById('plannedNowReadout').textContent = (data.plannedNowPct || 0).toFixed(1) + '%';
+  document.getElementById('realNowReadout').textContent = (data.realNowPct || 0).toFixed(1) + '%';
 
   if (sCurveChart) {
     sCurveChart.data.labels = labels;
@@ -939,6 +924,7 @@ function renderSCurve() {
       }
     }
   });
+  try { sCurveChart.resize(); } catch (_) {}
 }
 
 // ================= TAB: Equipe =================

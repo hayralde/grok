@@ -161,6 +161,33 @@ async function init() {
     END $$;
   `);
 
+  // ---- Historico de conclusao/desconclusao de tarefas ----
+  // Necessario pra Curva S "Real" poder subir E cair ao longo do tempo:
+  // done/done_at só guardam o ultimo estado, sem essa tabela não dá pra saber
+  // em que momento do passado uma tarefa foi desmarcada.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS task_events (
+      id SERIAL PRIMARY KEY,
+      area TEXT NOT NULL,
+      task_id INTEGER NOT NULL,
+      done BOOLEAN NOT NULL,
+      by_user TEXT,
+      at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS task_events_area_at_idx ON task_events (area, at)`);
+
+  const { rows: eventCount } = await pool.query('SELECT COUNT(*)::int AS n FROM task_events');
+  if (eventCount[0].n === 0) {
+    // Backfill: tarefas ja concluidas antes dessa tabela existir viram um
+    // evento inicial (na data de conclusao, ou no fim planejado se faltar).
+    await pool.query(`
+      INSERT INTO task_events (area, task_id, done, by_user, at)
+      SELECT area, id, TRUE, done_by, COALESCE(done_at, fim)
+      FROM tasks WHERE done = TRUE
+    `);
+  }
+
   // Migrate legacy flat meta keys into area-scoped keys for ELETRICA
   const { rows: legacyMeta } = await pool.query(
     `SELECT key, value FROM meta WHERE key IN ('projectStart','projectFinish','sectorOrder')`
