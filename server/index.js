@@ -40,6 +40,18 @@ function enforceUserArea(req, area) {
   return null;
 }
 
+function csvEscape(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function formatDateTimeBR(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 // ---------- Auth ----------
 app.post('/api/login', async (req, res) => {
   try {
@@ -217,6 +229,54 @@ app.get('/api/tasks', authRequired, async (req, res) => {
 
   const { rows } = await pool.query(query, params);
   res.json({ area, tasks: rows });
+});
+
+// ---------- Export da programação em CSV (mesma visibilidade de /api/tasks) ----------
+app.get('/api/tasks/export', authRequired, async (req, res) => {
+  const area = resolveArea(req);
+  if (!area) return res.status(400).json({ error: 'Area invalida. Use ELETRICA, MECANICA ou TGM.' });
+  const denied = enforceUserArea(req, area);
+  if (denied) return res.status(403).json({ error: denied });
+
+  let query = 'SELECT * FROM tasks WHERE area = $1 ORDER BY setor ASC, inicio ASC, id ASC';
+  let params = [area];
+
+  if (req.user && req.user.role === 'operador') {
+    query = 'SELECT * FROM tasks WHERE area = $1 AND tecnico = $2 ORDER BY setor ASC, inicio ASC, id ASC';
+    params = [area, req.user.tecnico];
+  }
+
+  const { rows } = await pool.query(query, params);
+  const cfg = getAreaConfig(area);
+  const responsavelLabel = (cfg && cfg.responsibleLabel) || 'Responsável';
+
+  const header = ['ID', 'Setor', 'TAG', 'Descrição', responsavelLabel, 'Início', 'Fim', 'Horas', 'Status', 'Concluído por', 'Concluído em'];
+  const lines = [header.map(csvEscape).join(',')];
+  for (const t of rows) {
+    lines.push([
+      t.id,
+      t.setor,
+      t.tag,
+      t.descricao,
+      t.tecnico,
+      formatDateTimeBR(t.inicio),
+      formatDateTimeBR(t.fim),
+      t.horas,
+      t.done ? 'Concluído' : 'Pendente',
+      t.done_by || '',
+      formatDateTimeBR(t.done_at),
+    ].map(csvEscape).join(','));
+  }
+  // BOM no início para o Excel abrir os acentos em UTF-8 corretamente
+  const csv = '﻿' + lines.join('\r\n') + '\r\n';
+
+  const label = ((cfg && cfg.labelShort) || area).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const dateTag = new Date().toISOString().slice(0, 10);
+  const filename = `programacao_${label}_${dateTag}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(csv);
 });
 
 // Toggle done — requires login

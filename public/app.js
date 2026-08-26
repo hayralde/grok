@@ -139,6 +139,40 @@ document.getElementById('backupBtn')?.addEventListener('click', async () => {
   }
 });
 
+document.getElementById('exportScheduleBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('exportScheduleBtn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Exportando...';
+  try {
+    const res = await fetch('/api/tasks/export?area=' + encodeURIComponent(CURRENT_AREA), {
+      headers: TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {},
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || ('Erro ' + res.status));
+    }
+    const blob = await res.blob();
+    const disp = res.headers.get('Content-Disposition') || '';
+    const match = /filename="([^"]+)"/.exec(disp);
+    const filename = match ? match[1] : `programacao_${CURRENT_AREA}.csv`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Erro ao exportar programação: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 document.getElementById('backupDriveBtn')?.addEventListener('click', async () => {
   const btn = document.getElementById('backupDriveBtn');
   const original = btn.textContent;
@@ -263,6 +297,8 @@ function applyUserUI() {
     adminControls.classList.toggle('hidden', USER.role !== 'admin');
     const backupBtn = document.getElementById('backupBtn');
     if (backupBtn) backupBtn.classList.toggle('hidden', USER.role !== 'admin');
+    const exportBtn = document.getElementById('exportScheduleBtn');
+    if (exportBtn) exportBtn.classList.remove('hidden');
     if (USER.role === 'admin') refreshGoogleDriveStatus(); else setGoogleDriveUI(null);
     const custosAdmin = document.getElementById('custosAdminControls');
     if (custosAdmin) custosAdmin.classList.toggle('hidden', USER.role !== 'admin');
@@ -281,6 +317,8 @@ function applyUserUI() {
     adminControls.classList.add('hidden');
     const backupBtn = document.getElementById('backupBtn');
     if (backupBtn) backupBtn.classList.add('hidden');
+    const exportBtn = document.getElementById('exportScheduleBtn');
+    if (exportBtn) exportBtn.classList.add('hidden');
     setGoogleDriveUI(null);
     const custosAdmin = document.getElementById('custosAdminControls');
     if (custosAdmin) custosAdmin.classList.add('hidden');
