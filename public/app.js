@@ -821,7 +821,13 @@ function renderSCurve() {
     return totalHours > 0 ? +(h / totalHours * 100).toFixed(2) : 0;
   });
   const real = buckets.map(d => {
-    const h = TASKS.filter(t => t.done && new Date(t.fim) <= d).reduce((s, t) => s + Number(t.horas), 0);
+    const h = TASKS.filter(t => {
+      if (!t.done) return false;
+      // Curva independente do planejado: usa a data em que a tarefa foi
+      // de fato concluída (done_at), não a data planejada (fim).
+      const completedAt = t.done_at ? new Date(t.done_at) : new Date(t.fim);
+      return completedAt <= d;
+    }).reduce((s, t) => s + Number(t.horas), 0);
     return totalHours > 0 ? +(h / totalHours * 100).toFixed(2) : 0;
   });
   const labels = buckets.map(d => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));

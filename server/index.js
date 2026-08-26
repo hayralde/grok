@@ -97,7 +97,7 @@ app.get('/api/dashboard', authRequired, async (req, res) => {
         meta[r.key.slice(area.length + 1)] = r.value;
       });
       const { rows: tasks } = await pool.query(
-        'SELECT id, inicio, fim, horas, done FROM tasks WHERE area = $1 ORDER BY id',
+        'SELECT id, inicio, fim, horas, done, done_at FROM tasks WHERE area = $1 ORDER BY id',
         [area]
       );
 
@@ -128,9 +128,14 @@ app.get('/api/dashboard', authRequired, async (req, res) => {
             .filter(t => new Date(t.fim) <= dayEnd)
             .reduce((s, t) => s + (Number(t.horas) || 0), 0);
           planned.push(+(pH / horasTotal * 100).toFixed(2));
-          // Mesma lógica da Curva S do painel: concluídas cujo fim planejado já passou
+          // Curva independente do planejado: usa a data em que a tarefa foi
+          // de fato concluída (done_at), não a data planejada (fim).
           const rH = tasks
-            .filter(t => t.done && new Date(t.fim) <= dayEnd)
+            .filter(t => {
+              if (!t.done) return false;
+              const completedAt = t.done_at ? new Date(t.done_at) : new Date(t.fim);
+              return completedAt <= dayEnd;
+            })
             .reduce((s, t) => s + (Number(t.horas) || 0), 0);
           real.push(+(rH / horasTotal * 100).toFixed(2));
           cur = new Date(cur.getTime() + dayMs);
