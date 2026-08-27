@@ -694,6 +694,11 @@ app.post('/api/import', authRequired, requireRole('admin'), async (req, res) => 
   try {
     await client.query('BEGIN');
     await client.query('DELETE FROM tasks WHERE area = $1', [area]);
+    // O cronograma novo reaproveita a mesma faixa de ids do antigo, entao o
+    // historico de eventos antigo (task_events) ficaria associado por engano
+    // as tarefas novas se nao for limpo aqui — Curva S "Real" mostraria
+    // progresso fantasma de um cronograma que nao existe mais.
+    await client.query('DELETE FROM task_events WHERE area = $1', [area]);
     for (const t of normalized) {
       await client.query(
         `INSERT INTO tasks (area, id, setor, tag, descricao, nome, tecnico, tecnico_tipo, inicio, fim, horas)
