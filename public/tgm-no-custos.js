@@ -20,7 +20,6 @@
     }
   }
 
-  /* --- Preserva aba: setupTabsForRole so muda se aba atual ficou invalida --- */
   function wrapSetupTabs() {
     if (window.__PCM_PRESERVE_TABS__) return;
     if (typeof setupTabsForRole !== 'function') return;
@@ -34,12 +33,10 @@
       } catch (e) {}
       _origSetup();
       applyTgmRestrictions();
-      // Se a aba ativa ainda e a mesma, nao forca reativacao extra
       try {
         var after = document.querySelector('.tab-btn.active');
         var afterName = after && after.getAttribute('data-tab');
         if (before && afterName && before !== afterName) {
-          // so reativa se a aba anterior ainda existir e estiver visivel
           var prevBtn = document.querySelector('.tab-btn[data-tab="' + before + '"]');
           if (prevBtn && prevBtn.style.display !== 'none' && typeof activateTab === 'function') {
             activateTab(before);
@@ -49,7 +46,6 @@
     };
   }
 
-  /* --- renderAll: redesenha so o conteudo da aba ativa, sem resetar UI --- */
   function wrapRenderAll() {
     if (window.__PCM_PRESERVE_RENDER__) return;
     if (typeof renderAll !== 'function') return;
@@ -71,6 +67,7 @@
         if (tab === 'equipe' && typeof renderEquipe === 'function') return renderEquipe();
         if (tab === 'tarefas' && typeof renderTarefas === 'function') return renderTarefas();
         if (tab === 'custos' && typeof renderCustos === 'function') return renderCustos();
+        if (tab === 'status' && typeof renderStatusDist === 'function') return renderStatusDist();
       } catch (e) {
         console.warn('[PCM] renderAll preserve', e);
       }
@@ -87,4 +84,11 @@
   document.addEventListener('DOMContentLoaded', tick);
   window.addEventListener('load', tick);
   tick();
+})();
+
+(function () {
+  if (document.querySelector('script[src*="status-dist.js"]')) return;
+  var s = document.createElement('script');
+  s.src = 'status-dist.js?v=4028s';
+  document.head.appendChild(s);
 })();
