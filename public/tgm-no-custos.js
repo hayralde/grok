@@ -89,6 +89,6 @@
 (function () {
   if (document.querySelector('script[src*="status-dist.js"]')) return;
   var s = document.createElement('script');
-  s.src = 'status-dist.js?v=4028s';
+  s.src = 'status-dist.js?v=4028t';
   document.head.appendChild(s);
 })();
