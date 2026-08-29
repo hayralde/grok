@@ -12,9 +12,9 @@ types.setTypeParser(1082, (val) => val);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')
-    ? { rejectUnauthorized: false }
-    : (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false),
+  // Provedores gerenciados (Supabase, Render, etc.) exigem SSL com certificado
+  // nao verificado pelo driver local; local dev sem NODE_ENV=production fica sem SSL.
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 const SEED = JSON.parse(

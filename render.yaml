@@ -1,9 +1,3 @@
-databases:
-  - name: grok-db
-    plan: free
-    databaseName: parada
-    user: parada
-
 services:
   - type: web
     name: grok
@@ -14,10 +8,11 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
+      # Banco fora do Render (Supabase free tier — o Postgres free do proprio
+      # Render expira em ~30 dias e e suspenso, veja o historico do repo).
+      # Configurado manualmente no dashboard do Render (Environment), nao aqui.
       - key: DATABASE_URL
-        fromDatabase:
-          name: grok-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: RESET_PASSWORD
