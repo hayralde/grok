@@ -47,7 +47,7 @@
             '<div class="panel-sub" id="statusDistSub">Situacao atual das tarefas desta disciplina. Atrasada: tarefa nao concluida cuja data de termino ja passou.</div>' +
           '</div></div>' +
           '<div class="panel-body">' +
-            '<div class="status-dist-card">' +
+            '<div class="status-dist-wrap"><div class="status-dist-card">' +
               '<div class="status-dist-head">' +
                 '<div class="status-dist-title">Distribuicao por status</div>' +
                 '<div class="status-dist-hint">Situacao atual de todas as tarefas pontuais. "Atrasada" e calculada automaticamente: tarefa nao concluida/em andamento cuja data ja passou.</div>' +
@@ -58,30 +58,38 @@
                   '<tbody id="statusDistTableBody"></tbody>' +
                 '</table>' +
                 '<div class="status-dist-chart-wrap"><canvas id="statusDistChart"></canvas></div>' +
-              '</div>' +
-            '</div>' +
+              '</div></div></div>' +
           '</div>' +
         '</div>';
       var equipe = document.getElementById('tab-equipe');
       if (equipe) main.insertBefore(sec, equipe);
       else main.appendChild(sec);
     }
-    if (!document.getElementById('statusDistStyle')) {
-      var st = document.createElement('style');
+    var card = document.querySelector('.status-dist-card');
+    if (card && card.parentElement && !card.parentElement.classList.contains('status-dist-wrap')) {
+      var wrap = document.createElement('div');
+      wrap.className = 'status-dist-wrap';
+      card.parentNode.insertBefore(wrap, card);
+      wrap.appendChild(card);
+    }
+    var st = document.getElementById('statusDistStyle');
+    if (!st) {
+      st = document.createElement('style');
       st.id = 'statusDistStyle';
-      st.textContent =
-        '.status-dist-card{background:#F7F4EE;color:#1B2430;border-radius:12px;padding:18px 20px 10px;}' +
-        '.status-dist-title{font-size:16px;font-weight:700;margin:0 0 4px;}' +
-        '.status-dist-hint{font-size:12px;color:#5B6773;margin:0 0 14px;line-height:1.4;}' +
-        '.status-dist-body{display:flex;gap:18px;align-items:stretch;min-height:260px;}' +
-        '.status-dist-table{border-collapse:collapse;min-width:168px;height:fit-content;background:#fff;}' +
-        '.status-dist-table th{background:#2F80ED;color:#fff;font-size:11px;letter-spacing:.04em;padding:8px 14px;text-align:left;}' +
-        '.status-dist-table th:last-child,.status-dist-table td:last-child{text-align:right;}' +
-        '.status-dist-table td{padding:8px 14px;border-bottom:1px solid #E6E2DA;font-size:13px;}' +
-        '.status-dist-chart-wrap{flex:1;min-width:0;height:260px;}' +
-        '@media(max-width:720px){.status-dist-body{flex-direction:column;}.status-dist-chart-wrap{height:220px;}}';
       document.head.appendChild(st);
     }
+    st.textContent =
+        '.status-dist-wrap{display:flex;justify-content:center;width:100%;}' +
+        '.status-dist-card{background:#F7F4EE;color:#1B2430;border-radius:12px;padding:16px 16px 8px;width:50%;max-width:50%;margin:0 auto;box-sizing:border-box;}' +
+        '.status-dist-title{font-size:15px;font-weight:700;margin:0 0 4px;}' +
+        '.status-dist-hint{font-size:11px;color:#5B6773;margin:0 0 10px;line-height:1.35;}' +
+        '.status-dist-body{display:flex;gap:12px;align-items:stretch;min-height:180px;}' +
+        '.status-dist-table{border-collapse:collapse;min-width:140px;height:fit-content;background:#fff;}' +
+        '.status-dist-table th{background:#2F80ED;color:#fff;font-size:10px;letter-spacing:.04em;padding:6px 10px;text-align:left;}' +
+        '.status-dist-table th:last-child,.status-dist-table td:last-child{text-align:right;}' +
+        '.status-dist-table td{padding:6px 10px;border-bottom:1px solid #E6E2DA;font-size:12px;}' +
+        '.status-dist-chart-wrap{flex:1;min-width:0;height:180px;}' +
+        '@media(max-width:900px){.status-dist-card{width:90%;max-width:90%;}.status-dist-body{flex-direction:column;}.status-dist-chart-wrap{height:160px;}}';
   }
 
   function classify(t, now) {
