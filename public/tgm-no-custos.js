@@ -99,3 +99,10 @@
   s.src = 'tgm-enum.js?v=4028u';
   document.head.appendChild(s);
 })();
+
+(function () {
+  if (document.querySelector('script[src*="tgm-scurve2.js"]')) return;
+  var s = document.createElement('script');
+  s.src = 'tgm-scurve2.js?v=4028v';
+  document.head.appendChild(s);
+})();
