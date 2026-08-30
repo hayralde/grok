@@ -92,3 +92,10 @@
   s.src = 'status-dist.js?v=4028t';
   document.head.appendChild(s);
 })();
+
+(function () {
+  if (document.querySelector('script[src*="tgm-enum.js"]')) return;
+  var s = document.createElement('script');
+  s.src = 'tgm-enum.js?v=4028u';
+  document.head.appendChild(s);
+})();
